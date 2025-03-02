@@ -24,17 +24,6 @@ A tool called an assembler translates each assembly instruction into a 16-bit bi
 that the VM can understand. This is our machine code.
 */
 
-/*
-Preliminary: binary numbers
-	- All numbers we use are uint16_t (a fixed-width C++ integer)
-	- These are the size of the data stored by LC-3
-	- Negative numbers are represented by a -1 in the leftmost position
-
-Bitshift and bitwise operations in C++:
-	- The << and >> operators in C++ represent left and right bit shifts respectively
-
-*/
-
 #pragma warning(disable:4996)
 
 #include <stdio.h>
