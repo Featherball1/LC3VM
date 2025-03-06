@@ -11,7 +11,7 @@ uint16_t LC3VM::swap16(uint16_t x) {
 }
 
 void LC3VM::read_image_file(FILE* file) {
-	uint16_t origin;						// Where in memory to place the image
+	uint16_t origin; // Where in memory to place the image
 	fread(&origin, sizeof(origin), 1, file);
 	origin = swap16(origin);
 
@@ -63,7 +63,7 @@ void LC3VM::update_flags(uint16_t r) {
 	if (LC3VM::reg[r] == 0) {
 		LC3VM::reg[LC3VM::R_COND] = LC3VM::FL_ZRO;
 	}
-	else if (LC3VM::reg[r] >> 15) {				// A 1 in the leftmost bit indicates that it is negative
+	else if (LC3VM::reg[r] >> 15) {	// A 1 in the leftmost bit indicates that it is negative
 		LC3VM::reg[LC3VM::R_COND] = LC3VM::FL_NEG;
 	}
 	else {
@@ -72,18 +72,18 @@ void LC3VM::update_flags(uint16_t r) {
 }
 
 void LC3VM::op_add(uint16_t instr) {
-	uint16_t r0 = (instr >> 9) & 0x7;						// Destination register DR
-	uint16_t r1 = (instr >> 6) & 0x7;						// First operand SR1
-	uint16_t imm_flag = (instr >> 5) & 0x1;					// Immediate mode flag
+	uint16_t r0 = (instr >> 9) & 0x7;					
+	uint16_t r1 = (instr >> 6) & 0x7;				
+	uint16_t imm_flag = (instr >> 5) & 0x1;			
 	if (imm_flag) {
 		uint16_t imm5 = sign_extend(instr & 0x1F, 5);
-		reg[r0] = reg[r1] + imm5;							// Write output of calculation to DR
+		reg[r0] = reg[r1] + imm5;							
 	}
 	else {
 		uint16_t r2 = instr & 0x7;
-		reg[r0] = reg[r1] + reg[r2];						// Write output of calculation to DR
+		reg[r0] = reg[r1] + reg[r2];					
 	}
-	update_flags(r0);										// Update flags after writing to register
+	update_flags(r0);										
 }
 
 void LC3VM::op_and(uint16_t instr) {
@@ -91,16 +91,16 @@ void LC3VM::op_and(uint16_t instr) {
 	The binary encoding of AND is basically exactly the same as ADD
 	The implementation here is therefore essentially the same as the above, but now replace + by bitwise AND
 	*/
-	uint16_t r0 = (instr >> 9) & 0x7;						// Destination register DR
-	uint16_t r1 = (instr >> 6) & 0x7;						// First operand SR1
-	uint16_t imm_flag = (instr >> 5) & 0x1;					// Immediate mode flag
+	uint16_t r0 = (instr >> 9) & 0x7;					
+	uint16_t r1 = (instr >> 6) & 0x7;						
+	uint16_t imm_flag = (instr >> 5) & 0x1;				
 	if (imm_flag) {
 		uint16_t imm5 = sign_extend(instr & 0x1F, 5);
-		reg[r0] = reg[r1] & imm5;							// Write output of calculation to DR
+		reg[r0] = reg[r1] & imm5;							
 	}
 	else {
 		uint16_t r2 = instr & 0x7;
-		reg[r0] = reg[r1] & reg[r2];						// Write output of calculation to DR
+		reg[r0] = reg[r1] & reg[r2];					
 	}
 	update_flags(r0);
 }
@@ -112,8 +112,8 @@ void LC3VM::op_not(uint16_t instr) {
 	1001      DR   SR  1  1111
 	Unlike ADD and AND this only has one source operand.
 	*/
-	uint16_t r0 = (instr >> 9) & 0x7;							// Destination register DR
-	uint16_t r1 = (instr >> 6) & 0x7;							// First operand SR1
+	uint16_t r0 = (instr >> 9) & 0x7;					
+	uint16_t r1 = (instr >> 6) & 0x7;						
 	reg[r0] = ~reg[r1];
 	update_flags(r0);
 }
@@ -129,10 +129,10 @@ void LC3VM::op_br(uint16_t instr) {
 	If specified condition codes are set, the branch is taken, by setting the PC to address specified in instruction.
 	Ekse, the next instruction is executed (+1 from current PC)
 	*/
-	uint16_t pc_offset = sign_extend(instr & 0x1FF, 9);		// Program counter offset
-	uint16_t cond_flag = (instr >> 9) & 0x7;				// Condition flags in BR instruction
-	if (cond_flag & reg[R_COND]) {							// Check whether to execute BR
-		reg[R_PC] += pc_offset;								// If true, increment PC by offset
+	uint16_t pc_offset = sign_extend(instr & 0x1FF, 9);		
+	uint16_t cond_flag = (instr >> 9) & 0x7;			
+	if (cond_flag & reg[R_COND]) {						
+		reg[R_PC] += pc_offset;					
 	}
 }
 
@@ -145,7 +145,7 @@ void LC3VM::op_jmp(uint16_t instr) {
 	JMP is an unconditional branch ('jump')
 	It sets PC = BaseR
 	*/
-	uint16_t BaseR = (instr >> 6) & 0x7;					// Base register
+	uint16_t BaseR = (instr >> 6) & 0x7;				
 	reg[R_PC] = reg[BaseR];
 }
 
@@ -161,13 +161,13 @@ void LC3VM::op_jsr(uint16_t instr) {
 	JSR is jump to subroutine.
 	The bit 11 in the instruction tells is a flag to execute JSR or JSRR.
 	*/
-	uint16_t flag = (instr >> 11) & 1;					// JSR or JSRR flag
-	reg[R_R7] = reg[R_PC];									// Incremented PC saved in R7 (see spec)
-	if (flag == 1) {										// JSR
-		uint16_t pc_offset = sign_extend(instr & 0x7FF, 11);// The PC offset
+	uint16_t flag = (instr >> 11) & 1;				
+	reg[R_R7] = reg[R_PC];							
+	if (flag == 1) {									
+		uint16_t pc_offset = sign_extend(instr & 0x7FF, 11);
 		reg[R_PC] += pc_offset;
 	}
-	else {													// JSRR
+	else {
 		uint16_t BaseR = (instr >> 6) & 0x7;
 		reg[R_PC] = reg[BaseR];
 	}
@@ -181,8 +181,8 @@ void LC3VM::op_ld(uint16_t instr) {
 
 	LD is a load instruction.
 	*/
-	uint16_t dr = (instr >> 9) & 0x7;						// Destination register DR
-	uint16_t pc_offset = sign_extend(instr & 0x1FF, 9);		// Short PC offset used to get memory location
+	uint16_t dr = (instr >> 9) & 0x7;				
+	uint16_t pc_offset = sign_extend(instr & 0x1FF, 9);		
 	reg[dr] = mem_read(reg[R_PC] + pc_offset);
 	update_flags(dr);
 }
@@ -197,9 +197,9 @@ void LC3VM::op_ldi(uint16_t instr) {
 	LDI does the operation DR = mem[mem[PC^+ + SEXT(PCoffset9)]]
 	as opposed to LD which was DR = mem[PC^+ + SEXT(PCoffset9)]
 	*/
-	uint16_t r0 = (instr >> 9) & 0x7;						// Destination register	DR
-	uint16_t pc_offset = sign_extend(instr & 0x1FF, 9);		// PCoffset 9
-	reg[r0] = mem_read(mem_read(reg[R_PC] + pc_offset));	// Add pc_offset to current PC, look at that memory location to get final address
+	uint16_t r0 = (instr >> 9) & 0x7;						
+	uint16_t pc_offset = sign_extend(instr & 0x1FF, 9);	
+	reg[r0] = mem_read(mem_read(reg[R_PC] + pc_offset));	
 	update_flags(r0);
 }
 
@@ -213,9 +213,9 @@ void LC3VM::op_ldr(uint16_t instr) {
 	This differs from the previous LD-type instructions by doing
 	DR = mem[BaseR + SEXT(offset6)]
 	*/
-	uint16_t dr = (instr >> 9) & 0x7;						// Destination register DR
-	uint16_t r1 = (instr >> 6) & 0x7;						// Base regster
-	uint16_t pc_offset = sign_extend(instr & 0x3F, 6);		// Short PC offset used to get memory location
+	uint16_t dr = (instr >> 9) & 0x7;			
+	uint16_t r1 = (instr >> 6) & 0x7;					
+	uint16_t pc_offset = sign_extend(instr & 0x3F, 6);	
 	reg[dr] = mem_read(reg[r1] + pc_offset);
 	update_flags(dr);
 }
@@ -228,8 +228,8 @@ void LC3VM::op_lea(uint16_t instr) {
 
 	LEA is load effective address.
 	*/
-	uint16_t dr = (instr >> 9) & 0x7;						// Destination register DR
-	uint16_t pc_offset = sign_extend(instr & 0x1FF, 9);		// Short PC offset used to get memory location
+	uint16_t dr = (instr >> 9) & 0x7;					
+	uint16_t pc_offset = sign_extend(instr & 0x1FF, 9);	
 	reg[dr] = reg[R_PC] + pc_offset;
 	update_flags(dr);
 }
@@ -242,8 +242,8 @@ void LC3VM::op_st(uint16_t instr) {
 
 	ST is store.
 	*/
-	uint16_t sr = (instr >> 9) & 0x7;						// Source register SR
-	uint16_t pc_offset = sign_extend(instr & 0x1FF, 9);		// Short PC offset used to get memory location
+	uint16_t sr = (instr >> 9) & 0x7;				
+	uint16_t pc_offset = sign_extend(instr & 0x1FF, 9);		
 	mem_write(reg[R_PC] + pc_offset, reg[sr]);
 }
 
@@ -255,8 +255,8 @@ void LC3VM::op_sti(uint16_t instr) {
 
 	STI is store indirect, similar to the load case.
 	*/
-	uint16_t sr = (instr >> 9) & 0x7;						// Source register SR
-	uint16_t pc_offset = sign_extend(instr & 0x1FF, 9);		// Short PC offset used to get memory location
+	uint16_t sr = (instr >> 9) & 0x7;				
+	uint16_t pc_offset = sign_extend(instr & 0x1FF, 9);	
 	mem_write(mem_read(reg[R_PC] + pc_offset), reg[sr]);
 }
 
@@ -268,9 +268,9 @@ void LC3VM::op_str(uint16_t instr) {
 
 	STR is store base + offset, similar to the load case.
 	*/
-	uint16_t sr = (instr >> 9) & 0x7;						// Source register SR
-	uint16_t baser = (instr >> 6) & 0x7;					// Base register BR
-	uint16_t pc_offset = sign_extend(instr & 0x3F, 6);		// Short PC offset used to get memory location
+	uint16_t sr = (instr >> 9) & 0x7;			
+	uint16_t baser = (instr >> 6) & 0x7;				
+	uint16_t pc_offset = sign_extend(instr & 0x3F, 6);	
 	mem_write(reg[baser] + pc_offset, reg[sr]);
 }
 
