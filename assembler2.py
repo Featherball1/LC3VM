@@ -318,7 +318,7 @@ def asm_pass_two(symbol_table, lines):
     for tokens, lc in lines[1:]:
         if tokens[0].v == '.END':
             break
-        print(tokens)
+        print("LINE:", tokens, lc)
 
         if tokens[0].t != Type.LABEL:
             CONDS[tokens[0].v](tokens, data, symbol_table, lc)
