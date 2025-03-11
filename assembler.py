@@ -70,13 +70,26 @@ opcodes = [
 ]
 
 trap_codes = [
-    "TRAP_GETC", "TRAP_OUT", "TRAP_PUTS", "TRAP_IN", "TRAP_PUTSP",
-    "TRAP_HALT"
+    "GETC", "OUT", "PUTS", "IN", "PUTSP", "HALT"
 ]
 
 preprocessor_directives = [
     ".ORIG", ".END", ".BLKW", ".FILL", ".STRINGZ"
 ]
+
+asm_keywords = opcodes + trap_codes + preprocessor_directives
+
+class TokenType(Enum):
+    LABEL = 'label'
+    OPCODE = 'opcode'
+    DOT = 'dot'
+    CONST = 'const'
+    REG = 'reg'
+    STR = 'str'
+
+@dataclass
+class Token:
+    pass
 
 class ErrorCodes(Enum):
     ERR_OPEN_READ = "Could not open file for reading"
@@ -100,30 +113,16 @@ class LineInfo:
     imm: int
     label_ref: str
 
-class SymbolTable:
-    def __init__(self):
-        self.symbol_table = defaultdict()
-
-    def symbol_init(self, lookup_by_addr: int):
-        self.symbol_table[lookup_by_addr] = "name"
-
-    def clear(self):
-        # Remove all symbols from the table (reset)
-        self.symbol_table = defaultdict()
-
-    def search(self, name: str) -> Symbol:
-        # Find a symbol by its name
-        return {f"{name}" : self.symbol_table[name]}
-
-    def search(self, addr: int) -> Symbol:
-        # Find a symbol by its address
-        pass
-
-    def map(self, f: Callable):
-        # Apply f to all entries in the symbol table
-        pass
-
 def tokenize_line(line: str) -> List[str]:
+    """
+    TODO: This currently can't handle spaces in .STRINGZ strings
+    Eg HELLOWORLD	.STRINGZ "Hello World\n" in test.asm
+    gets tokenized as ["Hello", "World\n",] which is not correct
+
+    For now: delete the whitespace so that we can check the program works, then
+    iron out the tokenization details later
+    """
+
     # Convert a single line of LC3 tokens into an iterable of tokens
     # The function
         # Takes as input the source code line
@@ -134,8 +133,14 @@ def tokenize_line(line: str) -> List[str]:
         # but converts all internal escape sequences into their actual character value
 
     # Split into non-comment and comment portion
-    uncommented_line = line.split(";")[0].strip("\n")
-    tokens = line.split()
+    uncommented_line = line.split(";")[0]
+    stripped_whitespace = uncommented_line.split()
+    tokens = []
+    for substring in stripped_whitespace:
+        # The list comprehension hack here is to get around the fact that you'll get a '' element
+        # in lists returned from .split("delimiter") in Python
+        for token in [x for x in substring.split(",") if x]:
+            tokens.append(token.strip())
     return tokens
 
 def match_syntax(line: str) -> bool:
@@ -147,13 +152,12 @@ def match_syntax(line: str) -> bool:
 def scan_operands(op_tokens: List[str]):
     pass
 
-class BetterAssembler:
+class Assembler:
     def __init__(self, filepath: str, debug: bool = True):
         self.filepath = filepath
         self.debug = debug
-        self.symbol_table = SymbolTable()
-        self.src_line_count = 0     # Line in source file
-        self.curr_addr = 0      # LC3 Addr of current instruction
+        self.symbol_table = None
+        self.lines_metadata = None
     
     def __enter__(self):
         self.file = open(self.filepath)
@@ -161,6 +165,14 @@ class BetterAssembler:
 
     def __exit__(self, exception_type, exception_value, exception_traceback):
         self.file.close()
+
+    def encode_operand(self):
+        # Will be used in pass 2
+        pass
+
+    def encode_PC_offset_or_error(self):
+        # Will be used in pass 2
+        pass
 
     def scan(self):
         """
@@ -172,93 +184,89 @@ class BetterAssembler:
         """
 
         # Phase one of assembling
+        symbol_table = {}
+        lines_metadata = []
+        location_counter = 0x0
         for line_idx, line in enumerate(self.file):
             tokens = tokenize_line(line)
             if not tokens: continue
-            
-            if self.debug:  print(f"Line {line_idx} split into tokens {tokens}")
+            # TODO: check_syntax(tokens)
 
-            if tokens[0] in opcodes:
-                line_info = LineInfo(line_idx, None, None, tokens[0], tokens[1], tokens[2], tokens[3], tokens[4], None)
-            else:
-                # Assume it is a label
-                pass
+            # The .END directive is treated separately from the others
+            if tokens[0] == ".END":
+                if self.debug: print(f"Line {line_idx} program end point found, exiting scanning")
+                lines_metadata.append((tokens, False, hex(location_counter), line_idx))
+                break
+
+            instr_idx = 0   # Used for indexing incase there's a label
+            label = None    # Will hold the label if there is one
+            if tokens[0] not in asm_keywords:
+                # There is a label
+                instr_idx = 1
+                label = tokens[0]
+
+            """CASE 1: We encounter a symbol"""
+            if label != None:
+                if label in symbol_table.keys(): 
+                    print("ERROR: The label {label} on line {line_idx} was already present in the symbol table (already defined)")
+                    return
+
+                symbol_table[label] = location_counter
+                lines_metadata.append((tokens, True, hex(location_counter), line_idx))
+            
+            """CASE 2: We encounter a preprocessor directive"""
+            if tokens[instr_idx] in preprocessor_directives:
+                # TODO: Implement the other preprocessor directives
+                if tokens[instr_idx] == ".ORIG":
+                    # .ORIG [address]
+                    location_counter = int('0' + tokens[1], 16)
+                elif tokens[instr_idx] == ".STRINGZ":
+                    # [label] .STRINGZ [string]
+                    location_counter = location_counter + len(tokens[2]) + 1
+                
+                lines_metadata.append((tokens, False, hex(location_counter), line_idx))
+
+            """CASE 3: We encounter an opcode"""
+            if tokens[instr_idx] in opcodes:
+                location_counter = location_counter + 1
+                lines_metadata.append((tokens, False, hex(location_counter), line_idx))
+
+            """CASE 4: We encounter a trapcode"""
+            if tokens[instr_idx] in trap_codes:
+                location_counter = location_counter + 1
+                lines_metadata.append((tokens, False, hex(location_counter), line_idx))
+
+            if self.debug:  print(f"""
+            LINE PROCESSING RESULTS
+            Line {line_idx} split into tokens {tokens}
+            There is a label {label}
+            The instruction is {tokens[instr_idx]}
+            The location counter is {hex(location_counter)}
+            ------------------------------------------
+            """)
+
+        self.symbol_table = symbol_table
+        self.lines_metadata = lines_metadata
+        #return symbol_table, lines_metadata
+    
+    def print_first_pass_results(self):
+        print("---------- SUMMARY ----------")
+        print("---------- SYMBOL TABLE {{label: address}} -----------")
+        pprint(self.symbol_table)
+        print("---------- SOURCE LINES (tokens, location_counter, source_file_line) -----------")
+        pprint(self.lines_metadata)
 
     def generate(self):
         # Phase 2 of assembling
-        pass
-
-class Assembler:
-    def __init__(self, filepath: str, debug = True):
-        """
-        self.debug: whether assembler should run in debug mode (print intermediary calculation)
-        self.location_counter: marks instruction idx in file (program start need not be at line 0 of file)
-        self.symbol_table: maps self.location_counter to associated label
-        """
-        self.filepath = filepath
-        self.debug = debug
-        self.location_counter = None
-        self.symbol_table = defaultdict(list)
-        self.statements_to_machine_code = defaultdict()
-
-    def scan_file(self, file: str):
-        """
-        Search for assembler directives
-        Populate symbol table
-        """
-        
-        # Step 2: Beginning at program entry point, search for lines with labels
-        # LABEL OPCODE OPERANDS ; COMMENTS
-        # Construct symbol table is a flag variable which tells us when to start recording for the symbol table
-        construct_symbol_table = False
-        with open(file) as fp:
-            for line_idx, line in enumerate(fp):
-                # Test whether the entry point is on this line
-                if ".ORIG" in line:
-                    if self.location_counter != None:
-                        print("Warning: .ORIG appears twice")
-
-                    self.location_counter = line_idx
-                    construct_symbol_table = True
-
-                    if self.debug == True: print("Found")
-
-                
-                # Test whether we should finish scanning
-                if ".END" in line:
-                    construct_symbol_table = False
-                    break
+        for idx, tup in enumerate(self.lines_metadata):
+            tokens, has_label, location_counter, source_line = tup
+            if tokens[0] == '.END':
+                if self.debug: print(f"Line {source_line} program end point found, exiting generation")
             
-                if construct_symbol_table:
-                    # It is a feature of assembly syntax that the label comes first
-                    whitespace_split = line.split()
-                    if len(whitespace_split) > 0:
-                        if whitespace_split[0] == ";":
-                            # The line was a comment
-                            pass
-                        else:
-                            label = whitespace_split[0]
-                            self.symbol_table[label].append(self.location_counter)
-
-                            if self.debug: print(f"Found label {label} in line {line}, added {self.location_counter} tp symbol_table[{label}]")
-
-                            self.location_counter += 1
-        if self.debug: pprint(f"Symbol table: {self.symbol_table}")
-
-    def assemble_machine_code(self):
-        pass
-
-    # Parse an entire program
-    def parse_program(self):
-        print(self.current_line)
-        print(self.skip())
-
-    def skip(self):
-        if self.current_line == re.match(r"\s+", self.current_line):
-            print("Whitespace found")
-        if self.current_line == re.match(r"(;).*[\n$]", self.current_line):
-            print("Found single line comment")
-
+            if self.debug: print(tokens)
+            
+            if not has_label:
+                pass
 
 # Set up the user-facing CLI interface
 parser = argparse.ArgumentParser()
@@ -266,6 +274,10 @@ parser.add_argument("inputs", metavar = "INPUT", nargs = "*", help = "Input file
 args = parser.parse_args()
 
 for i in args.inputs:
-    assembler = BetterAssembler(i)
+    assembler = Assembler(i)
     with assembler as assemble:
+        print("SCANNING")
         assembler.scan()
+        assembler.print_first_pass_results()
+        print("GENERATING")
+        assembler.generate()

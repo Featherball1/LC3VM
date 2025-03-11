@@ -9,6 +9,6 @@
 			PUTS
 			HALT
 	
-HELLOWORLD	.STRINGZ "Hello World\n"
+HELLOWORLD	.STRINGZ "HelloWorld\n"
 
 			.END

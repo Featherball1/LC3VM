@@ -1,4 +1,5 @@
 #pragma warning(disable:4996)
+#include <iostream>
 #include <stdio.h>
 #include <stdint.h>
 #include <signal.h>
