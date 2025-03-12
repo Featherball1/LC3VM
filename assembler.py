@@ -63,6 +63,8 @@ The second pass must
         - Report out-of-range offsets as errors
 """
 
+UINT16_MAX = 2 ** 16
+
 opcodes = [
     "ADD", "AND", "NOT", "BR", "JMP", "JSR", "LD", "LDI",
     "LDR", "LEA", "ST", "STI", "STR", "TRAP", "RES", "RTI"
@@ -257,7 +259,7 @@ def scan(filepath: str, debug: bool = True):
         if tokens[0].token_type == TokenType.LABEL:
             if tokens[0].value in symbol_table.keys(): 
                 print("ERROR: The label {label} on line {line_idx} was already present in the symbol table (already defined)")
-                return
+                #return
             symbol_table[tokens[0].value] = location_counter
 
         """CASE 3: We encounter a preprocessor directive"""
@@ -298,76 +300,85 @@ The location counter is {location_counter}, {hex(location_counter)}
 """PHASE TWO ASSEMBLY: ENCODINGS AND GENERATION"""
 
 """
-; Basic lc3 program.
-
-; Semi-colons are used to create comments.
-
-			.ORIG x3000
-
-			LEA R0, HELLOWORLD
-			PUTS
-			HALT
-	
-HELLOWORLD	.STRINGZ "HelloWorld\n"
-
-			.END
+Encodings
+The notation 
+... << 12 | ... << 9 | ...
+so on, is simply a convenience in python for constructing bit strings. 
+Eg NOT is encoded as
+1001 | DR | SR | 1 | 11111
+In Python we can do this with bit string manipulations
+1001 << 12 | DR < 9 | SR < 6 | 0b111111
 """
 
 def encode_add(opcode, symbol_table, location_counter, tokens):
-    pass
-
+    if tokens[3].token_type == TokenType.REGISTER:
+        # Not immediate mode
+        return opcodes_dict[opcode] << 12 | registers_dict[tokens[1].value] << 9 | registers_dict[tokens[1].value] << 6 | registers[tokens[3].value]
+    else:
+        # Immediate mode (imm5 flag is now true)
+        return opcodes_dict[opcode] << 12 | registers_dict[tokens[1].value] << 9 | registers_dict[tokens[1].value] << 6 | 1 << 5 | ((UINT16_MAX + tokens[3].value) & 0b11111)
 
 def encode_and(opcode, symbol_table, location_counter, tokens):
-    pass
+    if tokens[3].token_type == TokenType.REGISTER:
+        # Not immediate mode
+        return opcodes_dict[opcode] << 12 | registers_dict[tokens[1].value] << 9 | registers_dict[tokens[1].value] << 6 | registers[tokens[3].value]
+    else:
+        # Immediate mode (imm5 flag is now true)
+        return opcodes_dict[opcode] << 12 | registers_dict[tokens[1].value] << 9 | registers_dict[tokens[1].value] << 6 | 1 << 5 | ((UINT16_MAX + tokens[3].value) & 0b11111)
 
 def encode_not(opcode, symbol_table, location_counter, tokens):
-    return opcodes_dict[opcode] | registers_dict[tokens[1].value] << 9 | registers_dict[tokens[2].value] << 6 | 0b11111
+    return opcodes_dict[opcode] << 12 | registers_dict[tokens[1].value] << 9 | registers_dict[tokens[2].value] << 6 | 0b11111
 
 def encode_br(opcode, symbol_table, location_counter, tokens):
-    #return opcodes_dict[opcode] | 
-    pass
+    if tokens[0].v == 'BR':
+        op |= 1 << 11
+        op |= 1 << 10
+        op |= 1 << 9
+    if 'n' in tokens[0].v:
+        op |= 1 << 11
+    if 'z' in tokens[0].v:
+        op |= 1 << 10
+    if 'p' in tokens[0].v:
+        op |= 1 << 9
+
+    if tokens[1].token_type == TokenType.LABEL:
+        pcoffset9 = ((symbol_table[tokens[1].v] - location_counter) & 0b111111111)
+    elif tokens[1].token_type == TokenType.CONST:
+        pcoffset9 = tokens[1].v & 0b111111111
+    else:
+        raise Exception()
+
+    return op | pcoffset9
 
 def encode_jmp(opcode, symbol_table, location_counter, tokens):
-    return opcodes_dict[opcode] | 0b000 << 9 | registers_dict[tokens[1].value] << 6 | 0b000000
+    return opcodes_dict[opcode] << 12 | 0b000 << 9 | registers_dict[tokens[1].value] << 6 | 0b000000
 
 def encode_jsr(opcode, symbol_table, location_counter, tokens):
-    return opcodes_dict[opcode] | 1 << 11 | (symbol_table[tokens[1].value] - location_counter) & 0b11111111111
-
-def encode_add(opcode, symbol_table, location_counter, tokens):
-    pass
+    return opcodes_dict[opcode] << 12 | 1 << 11 | (symbol_table[tokens[1].value] - location_counter) & 0b11111111111
 
 def encode_ld(opcode, symbol_table, location_counter, tokens):
-    pass
+    return opcodes_dict[opcode] << 12 | registers_dict[tokens[1].value] << 9 | (symbol_table[tokens[2].value] - int(location_counter, 16)) &0b111111111
 
 def encode_ldi(opcode, symbol_table, location_counter, tokens):
-    pass
+    return opcodes_dict[opcode] << 12 | registers_dict[tokens[1].value] << 9 | (symbol_table[tokens[2].value] - int(location_counter, 16)) &0b111111111
 
 def encode_ldr(opcode, symbol_table, location_counter, tokens):
-    pass
+    return opcodes_dict[opcode] << 12 | registers_dict[tokens[1].value] << 9 | registers_dict[tokens[2].value] << 6 | ((UINT16_MAX + tokens[3].value) & 0b111111)
 
 def encode_lea(opcode, symbol_table, location_counter, tokens):
-    print(f"LEA ENCODING: {opcodes_dict[opcode] << 12 | registers_dict[tokens[1].value] << 9 | (symbol_table[tokens[2].value] - int(location_counter, 16)) & 0b11111111}")
-    print(f"""
-opcode: {opcodes_dict[opcode] << 12}
-dr: {registers_dict[tokens[1].value]}
-last bit: { (symbol_table[tokens[2].value] - int(location_counter, 16)) & 0b11111111}
-""")
     return opcodes_dict[opcode] << 12 | registers_dict[tokens[1].value] << 9 | (symbol_table[tokens[2].value] - int(location_counter, 16)) & 0b11111111
 
 def encode_st(opcode, symbol_table, location_counter, tokens):
-    pass
+    return opcodes_dict[opcode] << 12 | registers_dict[tokens[1].value] << 9 | (symbol_table[tokens[2].value] - int(location_counter, 16)) &0b111111111
 
 def encode_sti(opcode, symbol_table, location_counter, tokens):
-    pass
+    return opcodes_dict[opcode] << 12 | registers_dict[tokens[1].value] << 9 | (symbol_table[tokens[2].value] - int(location_counter, 16)) &0b111111111
 
 def encode_str(opcode, symbol_table, location_counter, tokens):
-    pass
+    return opcodes_dict[opcode] << 12 | registers_dict[tokens[1].value] << 9 | registers_dict[tokens[2].value] << 6 | ((UINT16_MAX + tokens[3].value) & 0b111111)
 
 def encode_trap(opcode, symbol_table, location_counter, tokens):
     return opcodes_dict["TRAP"] << 12 | trap_codes_dict[tokens[0].value]
-
-def encode_res(opcode, symbol_table, location_counter, tokens):
-    pass
 
 def encode_rti(opcode, symbol_table, location_counter, tokens):
     return 0b1000000000000000
@@ -387,7 +398,6 @@ encodings = {
     'STI' : lambda opcode, symbol_table, location_counter, tokens: encode_sti(opcode, symbol_table, location_counter, tokens),
     'STR' : lambda opcode, symbol_table, location_counter, tokens: encode_str(opcode, symbol_table, location_counter, tokens),
     'TRAP' : lambda opcode, symbol_table, location_counter, tokens: encode_trap(opcode, symbol_table, location_counter, tokens),
-    'RES' : lambda opcode, symbol_table, location_counter, tokens: encode_res(opcode, symbol_table, location_counter, tokens),
     'RTI' : lambda opcode, symbol_table, location_counter, tokens: encode_rti(opcode, symbol_table, location_counter, tokens),
 
     'GETC': lambda opcode, symbol_table, location_counter, tokens: encode_trap(opcode, symbol_table, location_counter, tokens),
@@ -434,12 +444,13 @@ parser = argparse.ArgumentParser()
 parser.add_argument("inputs", metavar = "INPUT", nargs = "*", help = "Input files to assemble")
 args = parser.parse_args()
 
+debug = True
+
 for i in args.inputs:
     print("SCANNING")
-    symbol_table, lines_metadata = scan(i)
-    #assembler.print_first_pass_results()
+    symbol_table, lines_metadata = scan(i, debug = debug)
     print("GENERATING")
-    data = generate(symbol_table, lines_metadata, i)
+    data = generate(symbol_table, lines_metadata, i, debug = debug)
     print("GENERATION RESULTS")
     print(data.tobytes().hex())
 
