@@ -1,27 +1,3 @@
 # LC3VM
 
-Goal:
-	- Create a VM that simulates the LC-3 educational compute rarchitecture
-
-LC-3 has
-	- 65536 memory locations which store 16 bit values (total storage 128KB)
-	- 10 total 16-bit registers
-		- 8 general purpose registers (R0-R7)
-		- 1 program counter (PC)
-		- 1 condition flags (COND)
-	- 16 opcodes
-		- Each opcode represents one task that the CPU can do
-	- 3 condition flags
-		- Condition flags are used for the CPU to signal various situations
-		- In LC-3 they indicate the sign of the previous calculation
-	- Two memory mapped registers
-		- The keyboard status register KBSR and keyboard data register KBDR
-		- KBSR indicates whether a key has been pressed
-		- KBDR identifies which key was pressed
-		- Memory mapped registers are typically used to interact with special hardware devices
-		- They are not accessible from the normal register table, and a special address is reserved for them in memory
-		- To read and write to these registers, just read and write to their memory location
-
-
-A tool called an assembler translates each assembly instruction into a 16-bit binary instruction
-that the VM can understand. This is our machine code. We will also build an assembler. 
+This repository implements the LC3 VM (in C++) as well as an assembler (in Python) to convert LC3 assembly programs into machine code that the VM can understand. To use the assembler, simple use the command `python assembler.py your_file_here.asm` in the Python command line and it will produce `your_file_here-assembled.obj` as output. There are no dependencies beyond the standard library for both the Python and C++ parts of the repository. To run the VM, provide `your-file-here-assembled.obj` as an argument before executing. Once the VM receives the file it will execute it and print any relevant output to the terminal. 
